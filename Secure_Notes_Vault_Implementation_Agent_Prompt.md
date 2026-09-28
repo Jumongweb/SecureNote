@@ -1,0 +1,30 @@
+# Implementation Agent Prompt — Personal Secure Notes Vault
+
+You are a senior desktop application engineer and application security engineer. Implement the attached `Personal_Secure_Notes_Vault_PRD.md` as a working, local-first desktop application. Treat the PRD as the product scope and this prompt as implementation and security guidance. Do not claim security properties you have not tested.
+
+## Product and stack
+- Target macOS first, with architecture that can support Windows/Linux later.
+- Tauri 2 desktop shell; React + TypeScript UI; Tailwind CSS and shadcn/ui; Rust privileged core; SQLite with SQLCipher for encrypted local storage.
+- Offline-only V1: no remote backend, cloud sync, analytics, telemetry, network-based auth, or external content loading.
+- A single local vault with create/unlock/lock, CRUD Markdown notes, folders, tags, pinned/archive/trash, local search, settings, password change, encrypted backup and restore.
+
+## Required engineering sequence
+1. Inspect the repository and available toolchain; preserve existing useful work. Read the PRD in full. Write `docs/architecture.md`, `docs/threat-model.md`, `docs/crypto-design.md`, and `docs/implementation-plan.md` before implementing security-sensitive features. Document assumptions and any scope deviations.
+2. Bootstrap a clean Tauri 2 + React + TypeScript project if needed. Keep Rust as the only layer allowed to access the vault database, filesystem and cryptographic keys. Expose minimal, typed Tauri commands. Disable unnecessary Tauri capabilities and enforce a restrictive CSP. Do not use remote web content in the renderer.
+3. Select maintained Rust crates for SQLCipher integration, Argon2id, secure randomness, zeroization where feasible, and authenticated encryption if additional field or backup encryption is needed. Pin versions, document native build requirements, and use vetted APIs; never implement custom cryptographic primitives.
+4. Specify a coherent key hierarchy before coding. Prefer a random vault/database key wrapped by a password-derived key so changing the master password can rewrap the key. Use per-vault random salt, calibrated Argon2id parameters, a versioned vault header, authenticated key wrapping, and securely generated nonces. Clearly document the relationship between SQLCipher page encryption and any additional AEAD layer; do not casually double-encrypt data without a reason.
+5. Store note content, titles, tags, folder names and other sensitive metadata inside the encrypted database. Consider SQLite WAL, journals, temporary files, search indexes, crash dumps, logs and backups as possible plaintext leakage paths. Search must operate locally while unlocked, without leaving a persistent plaintext index. Never persist the master password or log note contents/keys.
+6. Implement a vault state machine: not-created, locked, unlocking, unlocked, locking, error. Vault starts locked. Implement explicit lock, inactivity auto-lock and safe handling of sleep/resume and app backgrounding. Ensure the UI clears decrypted note state on lock; minimize secret lifetime in Rust and document limits of memory zeroization in a desktop app. Do not claim protection against malware on an already-compromised, unlocked machine.
+7. Implement note CRUD, Markdown editor and preview, folders, tags, pinning, archive, trash, filtering and search. Make editing resilient to crashes and accidental navigation. Define whether autosave is enabled and test it. Use schema migrations and transactional writes.
+8. Implement encrypted backups with a versioned format, authentication/integrity verification, clear password requirements, safe restore flow and no silent overwrite. Test recovery on a fresh installation. Plaintext Markdown export, if implemented, requires an explicit warning and user confirmation.
+9. Implement password change as authenticated rewrapping or a clearly documented equivalent. Handle interruptions safely and test that the old password cannot unlock the updated vault. Explain that losing the password without a recovery mechanism can make data unrecoverable.
+10. Build a polished desktop UX: vault creation, unlock, three-pane notes workspace, editor, search, settings, backup/restore and trash. Support dark/light mode, keyboard shortcuts, accessible focus states, and clear error messages without leaking secrets.
+
+## Verification and acceptance
+- Write unit and integration tests for vault lifecycle, wrong-password handling, note persistence, folder/tag operations, search, lock state, password change, migrations, backup/restore, malformed/corrupted vault and backup, and interrupted writes.
+- Include a test proving raw database inspection cannot reveal known note plaintext; inspect relevant auxiliary files too. Verify no note contents or passwords appear in logs. Validate the app works with networking disabled.
+- Run available lint, formatting, type checks, Rust tests, frontend tests, and desktop build. Report the exact commands and results. Do not mark a test as passed if it could not run; explain environmental blockers.
+- Never commit real credentials or test with real secrets. Include a `.gitignore`, `.env.example` only if truly needed, and `README.md` with macOS prerequisites, local run/build steps, threat-model limitations, and backup/recovery instructions.
+
+## Delivery and working style
+Implement in small, testable milestones: (1) design and scaffold, (2) crypto and encrypted vault, (3) note data layer, (4) UI, (5) backup and password change, (6) hardening/tests/packaging. Complete as much as the environment permits, rather than stopping after generating a plan. If a security-critical decision is ambiguous, document alternatives and choose a conservative, standard design; ask me only when the choice fundamentally changes product behavior. At the end, summarize implemented functionality, changed files, tests actually run, remaining limitations, and exact steps to launch the application. Never represent a prototype as audited or production-secure.
